@@ -1,0 +1,27 @@
+Name,Department,Status,ManagerName,JobTitle
+Timothée Chalamet,Engineering,New,Leonardo DiCaprio,Software Engineer
+Zoe Saldana,Engineering,New,Leonardo DiCaprio,DevOps Engineer
+Idris Elba,Engineering,New,Leonardo DiCaprio,QA Engineer
+Florence Pugh,Engineering,New,Leonardo DiCaprio,Backend Engineer
+Daniel Kaluuya,Sales,New,Scarlett Johansson,Sales Development Rep
+Anya Taylor-Joy,Sales,New,Scarlett Johansson,Regional Sales Manager
+John Boyega,Sales,New,Scarlett Johansson,Account Executive
+Awkwafina,Marketing,New,Ryan Reynolds,Content Strategist
+Oscar Isaac,Marketing,New,Ryan Reynolds,Social Media Specialist
+Lupita Nyong'o,Marketing,New,Ryan Reynolds,Brand Designer
+Rami Malek,Finance,New,Meryl Streep,Financial Analyst
+Brie Larson,Finance,New,Meryl Streep,Accounts Payable Specialist
+Mahershala Ali,Finance,New,Meryl Streep,Payroll Coordinator
+Jennifer Lawrence,HR,New,Denzel Washington,HR Generalist
+Chiwetel Ejiofor,HR,New,Denzel Washington,Talent Acquisition Specialist
+Saoirse Ronan,HR,New,Denzel Washington,Benefits Coordinator
+Donald Glover,IT,New,Emma Stone,Systems Administrator
+Elizabeth Olsen,IT,New,Emma Stone,Network Engineer
+John David Washington,IT,New,Emma Stone,Help Desk Technician
+Tessa Thompson,IT,New,Emma Stone,IT Support Analyst
+Chris Hemsworth,Marketing,Transfer,Ryan Reynolds,Account Executive
+Zendaya,Engineering,Transfer,Leonardo DiCaprio,Systems Support
+Michael B. Jordan,HR,Transfer,Denzel Washington,Finance Coordinator
+Margot Robbie,Finance,Transfer,Meryl Streep,Marketing Coordinator
+Tom Hardy,Engineering,Terminated,Leonardo DiCaprio,Software Engineer
+Viola Davis,HR,Terminated,Denzel Washington,HR Coordinator
