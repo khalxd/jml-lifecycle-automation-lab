@@ -177,12 +177,5 @@ Privileged access is governed through PIM eligible role assignments rather than 
 - **Not every HR record has a last name.** A single-name record (e.g. a mononymous user) will break a `-Surname` parameter if passed an empty string, handled by conditionally including the parameter only when a last name is present.
 - **Idempotency has to be designed in, not bolted on.** Early versions of the script errored when re-run against already-processed records; the fix was checking current state (does this user exist? are they already in this group? is their department already correct?) before taking any action, rather than assuming every run starts from zero.
 
-## Certifications
-
-**Earned:** CompTIA Security+ - Microsoft SC-900 - Microsoft AZ-900 - Google Cybersecurity Certificate
-
-**In progress:** SC-300 (Microsoft Identity and Access Administrator Associate)
-
-## Connect
 
 [LinkedIn](#)
