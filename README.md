@@ -1,22 +1,22 @@
-# JML (Joiner-Mover-Leaver) Lifecycle Automation Lab
+# JML Lifecycle Automation
 
-**Tools:** PowerShell, Microsoft Entra ID, Microsoft Graph API, Privileged Identity Management (PIM)
+**Stack:** PowerShell · Microsoft Entra ID · Microsoft Graph API · Privileged Identity Management (PIM)
 
-## Overview
+Automating the three things every identity team does constantly: onboard a new hire, move someone to a new department, offboard someone who's leaving. Instead of doing each of those by hand in the portal, this project reads an HR file and lets one script figure out and apply the right action for every person in it.
 
-This lab simulates an enterprise identity lifecycle automation pipeline driven by an HR system of truth. Rather than manually provisioning, transferring, or offboarding accounts one at a time, a single PowerShell reconciliation script reads an HR export (CSV) and automatically applies the correct identity action based on each record's status — mirroring how real-world IGA platforms (SailPoint, Okta Workflows, etc.) operate under the hood.
+The environment is a made-up company called KhaledTech, split into 6 departments — Engineering, Sales, Marketing, Finance, HR, and IT.
 
-The lab environment simulates a fictional company ("KhaledTech") with 6 departments — Engineering, Sales, Marketing, Finance, HR, and IT — and processes HR batches covering the full identity lifecycle: onboarding, department transfers, and offboarding with privileged access revocation.
+## How it works
 
-## Architecture
-
-- **Source of truth:** `HR_Roster_Batch*.csv` — simulates an HR system export with `Name`, `Department`, `Status`, `ManagerName`, `JobTitle` columns
-- **Reconciliation engine:** A single PowerShell script reads the CSV and branches into Joiner / Mover / Leaver logic using a `switch` statement on the `Status` field per record
-- **Identity platform:** Microsoft Entra ID (Microsoft Graph PowerShell SDK)
-- **Access control:** Department-based security groups (Assigned type), enforced via RBAC
-- **Privileged access:** PIM-eligible role assignments, automatically revoked on offboarding
-- **Idempotency:** Every branch checks current state before acting — existing users are skipped rather than recreated, existing group memberships aren't duplicated, and re-running the script against already-processed records is safe
-- **Audit trail:** Every lifecycle event (Joiner, Mover, Leaver) is logged with a timestamp to `JML_AuditLog.csv`
+| Piece | What it does |
+|---|---|
+| HR export | A CSV with `Name`, `Department`, `Status`, `ManagerName`, `JobTitle` — stands in for a real HR feed |
+| The script | One PowerShell file. Reads the CSV, checks each row's `Status`, runs the matching logic |
+| Entra ID | Where accounts, groups, and roles actually live — everything below is real, not simulated |
+| Groups | One security group per department, used for access control |
+| PIM | Privileged roles are eligible, not standing — and get pulled the moment someone leaves |
+| Logging | Every action writes a line to `JML_AuditLog.csv`, timestamped, separate from what prints to screen |
+| Safety | Re-running the script on the same data doesn't create duplicates or throw errors — it checks first |
 
 ```
 PS C:\JML-lab> Get-Content .\JML_AuditLog.csv -Head 10
@@ -31,27 +31,25 @@ PS C:\JML-lab> Get-Content .\JML_AuditLog.csv -Head 10
 
 ![Connect to Graph and CSV import](screenshots/01-connect-and-import.png)
 
-## Results
+## What actually ran
 
-| Event Type | Count |
+| | |
 |---|---|
-| Joiner | 26 |
-| Mover | 4 |
-| Leaver | 3 |
-| PIM roles revoked | 1 |
-| Total records processed | 33 |
+| Accounts created | 26 |
+| Department transfers | 4 |
+| Offboards | 3 |
+| PIM roles pulled | 1 |
+| Total | 33 |
 
-## Section 1: Joiner
+## Onboarding
 
-New identities provisioned in a single automated pass. For each record:
+For every row marked `New`, the script:
 
-- Account created in Entra ID with department and job title attributes set
-- Manager attribute linked to the correct department manager (a real user object, not just a text field)
-- Added to the department-specific security group
-- Event logged with timestamp
-- Existing accounts are detected and skipped rather than recreated, so the script is safe to re-run
-
-**Sample script logic:**
+- Creates the account with department and title set
+- Links a real manager object, not just a text field
+- Drops them into their department's security group
+- Logs the event
+- Skips it entirely if the account already exists, so nothing breaks on a second run
 
 ```powershell
 $newUser = New-MgUser -DisplayName $record.Name -UserPrincipalName $upn `
@@ -62,31 +60,27 @@ $group = Get-MgGroup -Filter "displayName eq '$($record.Department)'"
 New-MgGroupMember -GroupId $group.Id -DirectoryObjectId $newUser.Id
 ```
 
-A dry-run mode was built and tested first, printing what the script *would* do before any real changes were made:
+Before touching anything real, the script has a dry-run mode that just prints what it *would* do:
 
 ![Dry run output](screenshots/02-dry-run.png)
 
-Real-world edge cases were handled along the way — a missing surname on a single-name record, and safe re-run behavior for already-existing users:
+A couple of edge cases came up while testing — a person with no last name, and making sure re-running the script doesn't try to recreate people who already exist:
 
 ![Surname fix and skip logic](screenshots/03-surname-fix-and-skip-logic.png)
 
-Verified in the portal after running against the full batch:
+Checked against the portal afterward:
 
 ![Users created in portal](screenshots/04-users-created-portal.png)
 ![Group assignment](screenshots/05-group-assignment.png)
 ![Group membership verified in portal](screenshots/06-group-membership-portal.png)
 
-## Section 2: Mover
+## Department transfers
 
-Identities transferred between departments, simulating promotions/role changes. For each transfer:
+For `Transfer` rows, the script:
 
-- Removed from old department's security group
-- Added to new department's security group
-- Department attribute updated
-- Job title updated where applicable
-- Change reflects in real time, verified against the portal (both group memberships checked pre/post)
-
-**Sample script logic:**
+- Pulls them out of their old department's group
+- Adds them to the new one
+- Updates the `Department` attribute (and title, if it changed)
 
 ```powershell
 Remove-MgGroupMemberByRef -GroupId $oldGroup.Id -DirectoryObjectId $existingUser.Id
@@ -96,22 +90,20 @@ Update-MgUser -UserId $existingUser.Id -Department $newDepartment -JobTitle $rec
 
 ![Mover logic output](screenshots/07-mover-logic.png)
 
-Verified both sides of the transfer in the portal — added to the new department's group, and removed from the old one:
+Checked both sides of the move in the portal — added to the new group, gone from the old one:
 
 ![Mover verified in new group](screenshots/08-mover-verified-portal.png)
 ![Mover verified removed from old group](screenshots/08b-mover-verified-portal.png)
 
-## Section 3: Leaver
+## Offboarding
 
-Identities offboarded using a 5-step deprovisioning sequence:
+For `Terminated` rows, the script runs through a full deprovisioning pass:
 
-1. Disable account
-2. Randomize password
-3. Remove all group memberships
-4. Revoke active PIM eligible role assignments
-5. Hide from Global Address List
-
-**Sample script logic:**
+1. Disable the account
+2. Reset the password to something random
+3. Strip every group membership
+4. Pull any active PIM eligible role assignments
+5. Hide them from the address list
 
 ```powershell
 Update-MgUser -UserId $existingUser.Id -AccountEnabled:$false
@@ -137,45 +129,40 @@ Update-MgUser -UserId $existingUser.Id -ShowInAddressList:$false
 
 ![Leaver logic output](screenshots/09-leaver-logic.png)
 
-Verified in the portal — account disabled, zero group memberships, zero assigned roles:
+Portal check afterward — account disabled, zero groups, zero roles:
 
 ![Leaver verified in portal](screenshots/10-leaver-verified-portal.png)
 
-## Access Governance
+## PIM revocation
 
-Every lifecycle event — provisioning, transfer, and offboarding — is written to `JML_AuditLog.csv` with a timestamp, the acting event type, and the affected user, department, and manager. This provides a compliance-ready record of every identity change the script made, independent of console output.
+This is the part most basic offboarding scripts skip. If someone had a privileged role — even one they only had *eligibility* for, not active access — it needs to go when they leave. Here's a test role assigned to a still-active user, then revoked by the script once that same user was marked terminated:
 
-![Audit log contents](screenshots/14-audit-log.png)
-
-Privileged access is governed through PIM eligible role assignments rather than standing access, and the Leaver branch automatically revokes any eligible role assignments on offboarding — closing a gap that manual deprovisioning processes commonly miss.
-
-**Before:** a test user assigned an eligible PIM role.
+**Before** — eligible role assigned:
 
 ![PIM eligible assignment before offboarding](screenshots/11-pim-assignment-before.png)
 
-**During:** the Leaver branch programmatically revoking it.
+**The script revoking it:**
 
 ![PIM revocation in script output](screenshots/12-pim-revocation.png)
 ![PIM revocation re-run, confirming idempotency](screenshots/12b-pim-revocation-rerun-idempotent.png)
 
-**After:** the eligible assignment is gone from PIM.
+**After** — gone from PIM, confirmed in the portal:
 
 ![PIM eligible assignment revoked, verified in portal](screenshots/13-pim-revoked-portal.png)
 
-## Key Takeaways
+## Audit log
 
-- Built a reconciliation pattern (HR source of truth to automated identity actions) rather than three disconnected manual scripts
-- Demonstrated full JML lifecycle: provisioning, mid-lifecycle department/attribute changes, and secure offboarding with privileged access revocation
-- Designed for idempotency, safe to re-run against the same data without duplicating actions or erroring on already-processed records
-- Full audit trail for compliance/audit-readiness, separate from console output
-- Access governed by department-based RBAC security groups, verified against the Entra portal at each stage
+Every action above also writes a row here — separate from anything printed to the terminal, so there's a real record of what changed and when.
 
-## Lessons Learned
+![Audit log contents](screenshots/14-audit-log.png)
 
-- **Stale authentication tokens block privileged operations differently than standard ones.** A `New-MgUser` or `Update-MgUser` call for basic attributes succeeded on an older session token, but resetting another user's password (a Microsoft-classified sensitive/privileged action) returned a 403 until the session was fully disconnected and reconnected with a fresh token.
-- **`Import-Csv` on a single-row CSV returns a scalar object, not an array** — breaking `.Count` and any code that assumes array behavior. Wrapping the import in `@(...)` forces consistent array behavior regardless of row count.
-- **Not every HR record has a last name.** A single-name record (e.g. a mononymous user) will break a `-Surname` parameter if passed an empty string, handled by conditionally including the parameter only when a last name is present.
-- **Idempotency has to be designed in, not bolted on.** Early versions of the script errored when re-run against already-processed records; the fix was checking current state (does this user exist? are they already in this group? is their department already correct?) before taking any action, rather than assuming every run starts from zero.
+## Lessons learned
 
+- **A working token doesn't mean every action will work.** Basic updates went through fine on an older session, but resetting someone's password (which Graph treats as a sensitive action) kept getting rejected until I fully disconnected and reconnected.
+- **A one-row CSV isn't an array by default.** `Import-Csv` on a single record returns one object instead of a list, which breaks anything expecting `.Count`. Wrapping it in `@()` fixed it for good.
+- **Not everyone has a last name in the data.** One test user broke the script until I made the surname field optional instead of assumed.
+- **Re-running the script safely took real work, not luck.** Early versions errored out the second time they ran. Fixed by having every branch check "does this already exist / already match" before doing anything.
+
+## Connect
 
 [LinkedIn](#)
